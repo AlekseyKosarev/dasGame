@@ -65,8 +65,8 @@ def restart_player(var player: Player)
     
     player.pos = float2(110,100)
     player.velocity = float2(0,0)
-    player.speed = 100f
-    player.force_jump = 5000f
+    player.speed = 200f
+    player.force_jump = 500f
 
 def render_player(var player: Player)
     var height = player.collider.bottomRightCorner.y - player.collider.topLeftCorner.y
@@ -76,44 +76,38 @@ def render_player(var player: Player)
 def update_player(var player: Player; dt: float)
     player.collider.topLeftCorner = player.pos
     player.collider.bottomRightCorner = player.pos+float2(100f,100f)
-    player.pos.y += player.velocity.y*dt
-    player.pos.x += player.velocity.x*dt
+    player.pos += player.velocity*dt
 
     let jump = get_key(VK_SPACE)
-    if collision_down(wall.collider, player)
-        player.velocity.y = 0f
-    if ((collision_left(wall.collider, player) 
-    && collision_right(wall.collider, player))
-    &&  (collision_down(wall.collider, player)
-    && collision_up(wall.collider, player)))
-        player.velocity.x = 0f
-    else
-        update_input(player, dt)
-
+    
     if !(collision_down(wall.collider, player)
         && collision_right(wall.collider, player)
         && collision_left(wall.collider, player)
         && collision_up(wall.collider, player))
-        
+        print("colliusion!")
         apply_gravity(player, dt)
     else 
+        if(player.velocity.y >= 0f)
+            player.velocity.y = -5f
         if (jump && !jump_pressed)
             jump_player(player)
         jump_pressed = jump
-
+    update_input(player, dt)
 
 def jump_player(var player: Player)
-    player.velocity.y -= player.force_jump
+    player.velocity.y = clamp(player.velocity.y - player.force_jump, -1000.0, -250.0)
 
 def apply_gravity(var player: Player; dt: float)
     player.velocity.y += gravity*dt*10f
+
 def update_input(var player: Player; dt: float)
     if get_key(VK_A)
-        player.velocity.x = -player.speed
+        player.velocity.x = -player.speed*dt*50f
     elif get_key(VK_D)
-        player.velocity.x = player.speed
+        player.velocity.x = player.speed*dt*50f
     else
         player.velocity.x = 0f
+        
 def create_wall(var wall: Wall)
     var height = wall.collider.bottomRightCorner.y - wall.collider.topLeftCorner.y
     var width = wall.collider.bottomRightCorner.x - wall.collider.topLeftCorner.x

@@ -88,15 +88,23 @@ def dir_collision(other: Rect_collider; player: Player)
     return col;
 
 def check_collisions(var walls: array<Wall>; player: Player)
-    var p_col : tuple<d:bool; u:bool; r:bool; l:bool>
+    var p_col, all_col : tuple<d:bool; u:bool; r:bool; l:bool>
+
     for w in walls
         if is_collision(w.collider, player)
             w.collider.collision_for_player = true
             p_col = dir_collision(w.collider, player)
+            if p_col.d
+                all_col.d = true
+            if p_col.u
+                all_col.u = true
+            if p_col.r
+                all_col.r = true
+            if p_col.l
+                all_col.l = true
         else
             w.collider.collision_for_player = false
-            p_col.d; p_col.u; p_col.r; p_col.l = false
-    return p_col;
+    return all_col;
 
 def restart_player(var player: Player)
     player.pos = float2(100,100)
@@ -105,32 +113,32 @@ def restart_player(var player: Player)
     player.force_jump = 500f
     player.h_col = 100f // выс коллайдера и спрайта
     player.w_col = 100f
-    offsetRL = player.h_col / 6f
-    offsetDU = player.h_col / 1.5f
+    offsetRL = player.h_col / 5f
+    offsetDU = player.h_col / 2f
 
 def render_player(var player: Player)
     var height = player.collider.bottomRightCorner.y - player.collider.topLeftCorner.y
     var width = player.collider.bottomRightCorner.x - player.collider.topLeftCorner.x
     fill_rect(player.pos.x, player.pos.y, width, height, PLAYER_COLOR)
 
-def update_player(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:bool; l:bool>)
+def update_player(var player: Player; dt: float)
     player.collider.topLeftCorner = player.pos
     player.collider.bottomRightCorner = player.pos+float2(player.w_col, player.h_col)
     player.pos += player.velocity*dt
 
     let jump = get_key(VK_SPACE)
-    //var p_col = dir_collision(wall.collider, player)
+    var p_col = check_collisions(walls, player)
     if !p_col.d
         apply_gravity(player, dt)
     else 
         if(player.velocity.y >= 0f)
-            player.velocity.y = -5f
+            player.velocity.y = 0f
         if (jump && !jump_pressed && p_col.d && !(p_col.r || p_col.l))
             jump_player(player)
         jump_pressed = jump
     update_input(player, dt, p_col)
-    print("down   up     right  left  \n")
-    print("{p_col.d}, {p_col.u}, {p_col.r}, {p_col.l}\n")
+    //print("down   up     right  left  \n")
+    //print("{p_col.d}, {p_col.u}, {p_col.r}, {p_col.l}\n")
 def jump_player(var player: Player)
     player.velocity.y = clamp(player.velocity.y - player.force_jump, -1000.0, -250.0)
 
@@ -144,18 +152,28 @@ def update_input(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:b
         player.velocity.x = player.speed*dt*50f
     else
         player.velocity.x = 0f
+        
+def create_wall(var pos: float2; scale: float2; color: uint)
+    var new_wall: Wall
+    new_wall.color = color
+    new_wall.pos = pos
+    new_wall.collider.topLeftCorner = pos
+    new_wall.collider.bottomRightCorner = pos + scale
+    print("{length(walls)}\n")
+    push(walls, new_wall)
 
-def create_wall(var wall: Wall)
-    var height = wall.collider.bottomRightCorner.y - wall.collider.topLeftCorner.y
-    var width = wall.collider.bottomRightCorner.x - wall.collider.topLeftCorner.x
-    wall.pos = wall.collider.topLeftCorner
-    fill_rect(wall.pos.x, wall.pos.y, width, height, wall.color)
-    push(walls, wall)
 
 [export]
 def initialize
     set_window_title("TestPhysics1")
     restart_player(player)
+    
+    create_wall(float2(150, 400), float2(50, 50), 0x00000000)
+    create_wall(float2(250, 200), float2(400, 300), BRICK_COLOR)
+    
+    create_wall(float2(50, 500), float2(1000, 220), 0xf00ff0ff)
+
+
     return
 
 // this function is called to update game data,
@@ -165,32 +183,26 @@ def act(dt: float)
     if get_key(VK_ESCAPE)
         schedule_quit_game()
         
-    update_player(player, dt, check_collisions(walls, player))
-    // for w in range(0, length(walls))
-    //     colRect.topLeftCorner = float2(0, 50)
-    //     colRect.bottomRightCorner = float2(250, 50)
-    //     //print("Q")
-    //     apply_gravity(player, dt)
+    update_player(player, dt)
 
 
     return
 
 // this function will be called every frame after 'act',
 // you can draw anything in this function
+
+
+def render_walls(var walls: array<Wall>)
+    for wall in walls
+        var height = wall.collider.bottomRightCorner.y - wall.collider.topLeftCorner.y
+        var width = wall.collider.bottomRightCorner.x - wall.collider.topLeftCorner.x
+        wall.pos = wall.collider.topLeftCorner
+        fill_rect(wall.pos.x, wall.pos.y, width, height, wall.color)
 [export]
 def draw
     render_background()
     render_player(player)
+    render_walls(walls)
     //fill_rect(0.0, 700.0, 1280.0, 20.0, 0xffffff)
-    var wall,wall1: Wall
-    wall.collider.topLeftCorner = float2(200, 300)
-    wall.collider.bottomRightCorner =   wall.collider.topLeftCorner+float2(400, 300)
-
-    wall1.color = BRICK_COLOR//make_color
-    wall1.collider.topLeftCorner = float2(0, 500)
-    wall1.collider.bottomRightCorner = wall1.collider.topLeftCorner+float2(1000, 220)
     
-    create_wall(wall)
-    create_wall(wall1)
-    //push(walls,wall,w)
     return

@@ -4,8 +4,9 @@ require daslib/media
 let 
     HEIGHT_SCREEN = get_screen_height()
     WIDTH_SCREEN = get_screen_width()
-    BACK_COLOR = 0xF0F000
-    PLAYER_COLOR = 0x00FF
+    BACK_COLOR = 0xF0F0f0
+    BRICK_COLOR = 0xFF0000
+    PLAYER_COLOR = 0x0000ff
     JUMP_KEY = get_key_down(VK_SPACE)
     MOVE_RIGHT_KEY = get_key(VK_D)
     MOVE_LEFT_KEY = get_key(VK_A)
@@ -13,10 +14,12 @@ let
 struct Rect_collider
     topLeftCorner: float2
     bottomRightCorner: float2
+    collision_for_player: bool = false
     trigger: bool = false
 
 struct Wall
     collider: Rect_collider
+    color: uint
     pos: float2
     //death
 
@@ -26,93 +29,128 @@ struct Player
     velocity: float2
     speed: float
     force_jump: float = 10f
+    h_col: float = 100f
+    w_col: float = 100f
 var
     rect_collider: Rect_collider
     player: Player
     gravity: float = 9.8*20f
     walls: array<Wall> 
-    wall: Wall
+    //wall: Wall
     jump_pressed: bool = false
+    offsetRL: float //погрешность для боковых столкновений
+    offsetDU: float //погрешность для нижн./верх. столкновений
     
-// 'initialize' runs once when game starts and every hot-reload
-
 def render_background()
     fill_rect(0, 0, WIDTH_SCREEN, HEIGHT_SCREEN, BACK_COLOR)
 
-def collision_down(var other: Rect_collider; player: Player)
-    if (player.collider.bottomRightCorner.y > other.topLeftCorner.y)
-        
-        return true;//no collision
+
+def is_collision(var other: Rect_collider; player: Player)
+    if ((player.collider.bottomRightCorner.y > other.topLeftCorner.y)
+    && (player.collider.topLeftCorner.y < other.bottomRightCorner.y)
+    && (player.collider.bottomRightCorner.x > other.topLeftCorner.x)
+    && (player.collider.topLeftCorner.x < other.bottomRightCorner.x))
+        return true;
     else
         return false;
-def collision_up(var other: Rect_collider; player: Player)
-    if (player.collider.topLeftCorner.y < other.bottomRightCorner.y)
-        
-        return true;//no collision
-    else
-        return false;
-def collision_right(var other: Rect_collider; player: Player)
-    if (player.collider.bottomRightCorner.x > other.topLeftCorner.x)
-        return true;//no collision
-    else
-        return false;
-def collision_left(var other: Rect_collider; player: Player)
-    if (player.collider.topLeftCorner.x < other.bottomRightCorner.x)
-        return true;//no collision
-    else
-        return false;
-def restart_player(var player: Player)
+
+def dir_collision(other: Rect_collider; player: Player)
     
-    player.pos = float2(110,100)
+    var down,up,right,left: bool
+    var pl_col = player.collider
+    //down
+    if ((pl_col.bottomRightCorner.y >= other.topLeftCorner.y)
+    && (pl_col.topLeftCorner.y < other.topLeftCorner.y)
+    && (pl_col.topLeftCorner.x < other.bottomRightCorner.x)
+    && (pl_col.bottomRightCorner.x > other.topLeftCorner.x))
+        down = true
+    //up
+    if ((pl_col.topLeftCorner.y <= other.bottomRightCorner.y)
+    && (pl_col.bottomRightCorner.y > other.bottomRightCorner.y))
+        up = true
+    //right
+    if ((pl_col.bottomRightCorner.x >= other.topLeftCorner.x)
+    && (pl_col.topLeftCorner.x < other.topLeftCorner.x)
+    && (pl_col.bottomRightCorner.y > other.topLeftCorner.y+offsetRL)
+    && (pl_col.topLeftCorner.y < other.bottomRightCorner.y))
+        right = true
+    //left
+    if ((pl_col.topLeftCorner.x <= other.bottomRightCorner.x)
+    && (pl_col.bottomRightCorner.x > other.bottomRightCorner.x)
+    && (pl_col.bottomRightCorner.y > other.topLeftCorner.y+offsetRL)
+    && (pl_col.topLeftCorner.y < other.bottomRightCorner.y))
+        left = true
+    var col : tuple<d:bool; u:bool; r:bool; l:bool>
+    col.d = down
+    col.u = up
+    col.r = right
+    col.l = left
+    return col;
+
+def check_collisions(var walls: array<Wall>; player: Player)
+    var p_col : tuple<d:bool; u:bool; r:bool; l:bool>
+    for w in walls
+        if is_collision(w.collider, player)
+            w.collider.collision_for_player = true
+            p_col = dir_collision(w.collider, player)
+        else
+            w.collider.collision_for_player = false
+            p_col.d; p_col.u; p_col.r; p_col.l = false
+    return p_col;
+
+def restart_player(var player: Player)
+    player.pos = float2(100,100)
     player.velocity = float2(0,0)
     player.speed = 200f
     player.force_jump = 500f
+    player.h_col = 100f // выс коллайдера и спрайта
+    player.w_col = 100f
+    offsetRL = player.h_col / 6f
+    offsetDU = player.h_col / 1.5f
 
 def render_player(var player: Player)
     var height = player.collider.bottomRightCorner.y - player.collider.topLeftCorner.y
     var width = player.collider.bottomRightCorner.x - player.collider.topLeftCorner.x
     fill_rect(player.pos.x, player.pos.y, width, height, PLAYER_COLOR)
 
-def update_player(var player: Player; dt: float)
+def update_player(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:bool; l:bool>)
     player.collider.topLeftCorner = player.pos
-    player.collider.bottomRightCorner = player.pos+float2(100f,100f)
+    player.collider.bottomRightCorner = player.pos+float2(player.w_col, player.h_col)
     player.pos += player.velocity*dt
 
     let jump = get_key(VK_SPACE)
-    
-    if !(collision_down(wall.collider, player)
-        && collision_right(wall.collider, player)
-        && collision_left(wall.collider, player)
-        && collision_up(wall.collider, player))
-        print("colliusion!")
+    //var p_col = dir_collision(wall.collider, player)
+    if !p_col.d
         apply_gravity(player, dt)
     else 
         if(player.velocity.y >= 0f)
             player.velocity.y = -5f
-        if (jump && !jump_pressed)
+        if (jump && !jump_pressed && p_col.d && !(p_col.r || p_col.l))
             jump_player(player)
         jump_pressed = jump
-    update_input(player, dt)
-
+    update_input(player, dt, p_col)
+    print("down   up     right  left  \n")
+    print("{p_col.d}, {p_col.u}, {p_col.r}, {p_col.l}\n")
 def jump_player(var player: Player)
     player.velocity.y = clamp(player.velocity.y - player.force_jump, -1000.0, -250.0)
 
 def apply_gravity(var player: Player; dt: float)
     player.velocity.y += gravity*dt*10f
 
-def update_input(var player: Player; dt: float)
-    if get_key(VK_A)
+def update_input(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:bool; l:bool>)
+    if (get_key(VK_A) && !p_col.l)
         player.velocity.x = -player.speed*dt*50f
-    elif get_key(VK_D)
+    elif (get_key(VK_D) && !p_col.r)
         player.velocity.x = player.speed*dt*50f
     else
         player.velocity.x = 0f
-        
+
 def create_wall(var wall: Wall)
     var height = wall.collider.bottomRightCorner.y - wall.collider.topLeftCorner.y
     var width = wall.collider.bottomRightCorner.x - wall.collider.topLeftCorner.x
     wall.pos = wall.collider.topLeftCorner
-    fill_rect(wall.pos.x, wall.pos.y, width, height, 0x000000)
+    fill_rect(wall.pos.x, wall.pos.y, width, height, wall.color)
+    push(walls, wall)
 
 [export]
 def initialize
@@ -126,9 +164,8 @@ def initialize
 def act(dt: float)
     if get_key(VK_ESCAPE)
         schedule_quit_game()
-
-    update_player(player, dt)
-
+        
+    update_player(player, dt, check_collisions(walls, player))
     // for w in range(0, length(walls))
     //     colRect.topLeftCorner = float2(0, 50)
     //     colRect.bottomRightCorner = float2(250, 50)
@@ -145,9 +182,15 @@ def draw
     render_background()
     render_player(player)
     //fill_rect(0.0, 700.0, 1280.0, 20.0, 0xffffff)
-    wall.pos = float2(200,300)
-    wall.collider.topLeftCorner = wall.pos //float2(200, 300)
-    wall.collider.bottomRightCorner = wall.pos+float2(400, 300)
+    var wall,wall1: Wall
+    wall.collider.topLeftCorner = float2(200, 300)
+    wall.collider.bottomRightCorner =   wall.collider.topLeftCorner+float2(400, 300)
+
+    wall1.color = BRICK_COLOR//make_color
+    wall1.collider.topLeftCorner = float2(0, 500)
+    wall1.collider.bottomRightCorner = wall1.collider.topLeftCorner+float2(1000, 220)
+    
     create_wall(wall)
+    create_wall(wall1)
     //push(walls,wall,w)
     return

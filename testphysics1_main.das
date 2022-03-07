@@ -60,7 +60,7 @@ def dir_collision(other: Rect_collider; player: Player)
     var pl_col = player.collider
     var ground_offset: float
     //down
-    if ((pl_col.bottomRightCorner.y >= other.topLeftCorner.y)
+    if ((pl_col.bottomRightCorner.y >= other.topLeftCorner.y+offsetDU)
     && (pl_col.topLeftCorner.y < other.topLeftCorner.y)
     && (pl_col.topLeftCorner.x < other.bottomRightCorner.x)
     && (pl_col.bottomRightCorner.x > other.topLeftCorner.x))
@@ -116,8 +116,8 @@ def restart_player(var player: Player)
     player.force_jump = 500f
     player.h_col = 100f // выс коллайдера и спрайта
     player.w_col = 100f
-    offsetRL = player.h_col / 5f
-    offsetDU = player.h_col / 2f
+    offsetRL = player.h_col/10f
+    offsetDU = player.h_col/150f
 
 def render_player(var player: Player)
     var height = player.collider.bottomRightCorner.y - player.collider.topLeftCorner.y
@@ -131,13 +131,13 @@ def update_player(var player: Player; dt: float)
 
     let jump = get_key(VK_SPACE)
     var p_col = check_collisions(walls, player)
-    print("{p_col.go}")
+    //print("{p_col.go}\n")
     if !p_col.d
         apply_gravity(player, dt)
     else 
         if(player.velocity.y >= 0f)
             up_on_ground(player, p_col.go)
-        if (jump && !jump_pressed && p_col.d && !(p_col.r || p_col.l))
+        if ((jump && !jump_pressed && p_col.d))
             jump_player(player)
         jump_pressed = jump
     update_input(player, dt, p_col)
@@ -176,9 +176,9 @@ def create_wall(var pos: float2; scale: float2; color: uint)
 def initialize
     set_window_title("TestPhysics1")
     restart_player(player)
-    
-    create_wall(float2(150, 400), float2(50, 50), 0x00000000)
-    create_wall(float2(250, 200), float2(400, 300), BRICK_COLOR)
+    for i in range(0, 50)
+        create_wall(float2(150+50*i, 455-25*i), float2(50, 25), 0x00000000)
+    //create_wall(float2(250, 200), float2(400, 300), BRICK_COLOR)
     
     create_wall(float2(50, 500), float2(1000, 220), 0xf00ff0ff)
 

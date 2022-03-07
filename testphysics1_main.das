@@ -58,12 +58,14 @@ def dir_collision(other: Rect_collider; player: Player)
     
     var down,up,right,left: bool
     var pl_col = player.collider
+    var ground_offset: float
     //down
     if ((pl_col.bottomRightCorner.y >= other.topLeftCorner.y)
     && (pl_col.topLeftCorner.y < other.topLeftCorner.y)
     && (pl_col.topLeftCorner.x < other.bottomRightCorner.x)
     && (pl_col.bottomRightCorner.x > other.topLeftCorner.x))
         down = true
+        ground_offset = pl_col.bottomRightCorner.y - other.topLeftCorner.y
     //up
     if ((pl_col.topLeftCorner.y <= other.bottomRightCorner.y)
     && (pl_col.bottomRightCorner.y > other.bottomRightCorner.y))
@@ -80,15 +82,15 @@ def dir_collision(other: Rect_collider; player: Player)
     && (pl_col.bottomRightCorner.y > other.topLeftCorner.y+offsetRL)
     && (pl_col.topLeftCorner.y < other.bottomRightCorner.y))
         left = true
-    var col : tuple<d:bool; u:bool; r:bool; l:bool>
+    var col : tuple<d:bool; u:bool; r:bool; l:bool; go:float>
     col.d = down
     col.u = up
     col.r = right
     col.l = left
+    col.go = ground_offset
     return col;
-
 def check_collisions(var walls: array<Wall>; player: Player)
-    var p_col, all_col : tuple<d:bool; u:bool; r:bool; l:bool>
+    var p_col, all_col : tuple<d:bool; u:bool; r:bool; l:bool; go:float>
 
     for w in walls
         if is_collision(w.collider, player)
@@ -96,6 +98,7 @@ def check_collisions(var walls: array<Wall>; player: Player)
             p_col = dir_collision(w.collider, player)
             if p_col.d
                 all_col.d = true
+                all_col.go = p_col.go
             if p_col.u
                 all_col.u = true
             if p_col.r
@@ -128,24 +131,30 @@ def update_player(var player: Player; dt: float)
 
     let jump = get_key(VK_SPACE)
     var p_col = check_collisions(walls, player)
+    print("{p_col.go}")
     if !p_col.d
         apply_gravity(player, dt)
     else 
         if(player.velocity.y >= 0f)
-            player.velocity.y = 0f
+            up_on_ground(player, p_col.go)
         if (jump && !jump_pressed && p_col.d && !(p_col.r || p_col.l))
             jump_player(player)
         jump_pressed = jump
     update_input(player, dt, p_col)
     //print("down   up     right  left  \n")
     //print("{p_col.d}, {p_col.u}, {p_col.r}, {p_col.l}\n")
+def up_on_ground(var player: Player; offset: float)
+    player.pos.y = player.pos.y - (offset-1f)
+    
+    player.velocity.y = 0f
+
 def jump_player(var player: Player)
     player.velocity.y = clamp(player.velocity.y - player.force_jump, -1000.0, -250.0)
 
 def apply_gravity(var player: Player; dt: float)
     player.velocity.y += gravity*dt*10f
 
-def update_input(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:bool; l:bool>)
+def update_input(var player: Player; dt: float; p_col: tuple<d:bool; u:bool; r:bool; l:bool; go:float>)
     if (get_key(VK_A) && !p_col.l)
         player.velocity.x = -player.speed*dt*50f
     elif (get_key(VK_D) && !p_col.r)
